@@ -6,11 +6,35 @@ import (
 	"net/http"
 	"time"
 
+	"apiserver/config"
 	"apiserver/router"
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+)
+
+var (
+	// cfg 变量值由命令行 flag 传入
+	// e.g.可以传值(./apiserver -c config.yaml)
+	cfg          = pflag.StringP("config", "c", "", "apiserver config file path.")
+	runmode      = "runmode"
+	addr         = "addr"
+	url          = "url"
+	maxPingCount = "max_ping_count"
 )
 
 func main() {
+	pflag.Parse()
+
+	// init config
+	if err := config.Init(*cfg); err != nil {
+		panic(err)
+	}
+
+	// Set gin mode.
+	// gin 有 3 种运行模式：debug\release\test, 其中 debug 模式会打印很多 debug 信息
+	gin.SetMode(viper.GetString(runmode))
+
 	// Create the Gin engine.
 	g := gin.New()
 
@@ -20,25 +44,27 @@ func main() {
 	router.Load(
 		// Cores.
 		g,
-		// Middleware.
+
+		// Middlwares.
 		middlewares...,
 	)
 
+	// Ping the server to make sure the router is working.
 	go func() {
 		if err := pingServer(); err != nil {
 			log.Fatal("The router has no response, or it might took too long to start up.", err)
 		}
 		log.Print("The router has been deployed successfully.")
 	}()
-	log.Printf("Start to listening the incoming requests on http address: %s", ":8080")
-	log.Printf(http.ListenAndServe(":8080", g).Error())
+	log.Printf("Start to listening the incoming requests on http address: %s", viper.GetString(addr))
+	log.Printf(http.ListenAndServe(viper.GetString(addr), g).Error())
 }
 
 // pingServer pings the http server to make sure the router is working.
 func pingServer() error {
-	for i := 0; i < 2; i++ {
+	for i := 0; i < viper.GetInt(maxPingCount); i++ {
 		// Ping the server by sending a GET request to `/health`.
-		resp, err := http.Get("http://127.0.0.1:8080" + "/sd/health")
+		resp, err := http.Get(viper.GetString(url) + "/sd/health")
 		if err == nil && resp.StatusCode == 200 {
 			return nil
 		}
@@ -47,6 +73,6 @@ func pingServer() error {
 		log.Print("Waiting for the router, retry in 1 second.")
 		time.Sleep(time.Second)
 	}
-
+	//goland:noinspection GoErrorStringFormat
 	return errors.New("Cannot connect to the router.")
 }
