@@ -1,11 +1,22 @@
 package config
 
 import (
-	"log"
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/lexkong/log"
 	"github.com/spf13/viper"
+)
+
+const (
+	logWriters        = "log.writers"
+	loggerLevel       = "log.logger_level"
+	loggerFile        = "log.logger_file"
+	logFormatText     = "log.log_format_text"
+	logRlollingPolicy = "log.rollingPolicy"
+	logRotateDate     = "log.log_rotate_date"
+	logRotateSize     = "log.log_rotate_size"
+	logBackupCount    = "log.log_backup_count"
 )
 
 type Config struct {
@@ -20,6 +31,9 @@ func Init(cfg string) error {
 	if err := c.initConfig(); err != nil {
 		return err
 	}
+
+	// 初始化日志包
+	c.initLog()
 
 	// 监控配置文件变化并热加载程序
 	c.watchConfig()
@@ -49,11 +63,29 @@ func (c *Config) initConfig() error {
 	return nil
 }
 
+// initLog 初始化日志包
+func (c *Config) initLog() {
+	passLagerCfg := log.PassLagerCfg{
+		Writers:        viper.GetString(logWriters),
+		LoggerLevel:    viper.GetString(loggerLevel),
+		LoggerFile:     viper.GetString(loggerFile),
+		LogFormatText:  viper.GetBool(logFormatText),
+		RollingPolicy:  viper.GetString(logRlollingPolicy),
+		LogRotateDate:  viper.GetInt(logRotateDate),
+		LogRotateSize:  viper.GetInt(logRotateSize),
+		LogBackupCount: viper.GetInt(logBackupCount),
+	}
+
+	if err := log.InitWithConfig(&passLagerCfg); err != nil {
+		return
+	}
+}
+
 // watchConfig 监控配置文件变化并热加载程序
 // 热更新是指: 可以不重启 APISERVER 进程，使 APISERVER 加载最新配置项的值
 func (c *Config) watchConfig() {
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
-		log.Printf("Config file changed: %s", e.Name)
+		log.Infof("Config file changed: %s", e.Name)
 	})
 }
