@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"apiserver/config"
+	"apiserver/model"
 	"apiserver/router"
 	"github.com/gin-gonic/gin"
 	"github.com/lexkong/log"
@@ -33,6 +34,10 @@ func main() {
 	if err := config.Init(*cfg); err != nil {
 		panic(err)
 	}
+
+	// init db
+	model.DB.Init()
+	defer model.DB.Close()
 
 	// Set gin mode.
 	// gin 有 3 种运行模式：debug\release\test, 其中 debug 模式会打印很多 debug 信息
