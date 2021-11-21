@@ -1,16 +1,24 @@
 package user
 
 import (
-	"fmt"
-
 	. "apiserver/handler"
+	"apiserver/model"
 	"apiserver/pkg/errno"
+	"apiserver/util"
 	"github.com/gin-gonic/gin"
 	"github.com/lexkong/log"
+	"github.com/lexkong/log/lager"
 )
 
 // Create creates a new user account.
+// 创建账号逻辑:
+// 1.从 HTTP 消息体获取参数（账号名和密码）
+// 2.参数校验
+// 3.加密密码
+// 4.在数据库中添加数据记录
+// 5.返回结果（这里是账号名）
 func Create(c *gin.Context) {
+	log.Info("User Create function called.", lager.Data{"X-Request-Id": util.GetReqID(c)})
 	var r CreateRequest
 	// 检查 Content-Type 类型，将消息体作为指定的格式解析到 Go struct 变量中
 	if err := c.Bind(&r); err != nil {
@@ -18,26 +26,28 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	// 返回 URL 的参数值
-	admin2 := c.Param("username")
-	log.Infof("URL username: %s", admin2)
+	u := model.UserModel{
+		Username: r.Username,
+		Password: r.Password,
+	}
 
-	// 读取 URL 中的地址参数
-	desc := c.Query("desc")
-	log.Infof("URL key param desc: %s", desc)
-
-	// 获取 HTTP 头
-	contentType := c.GetHeader("Content-Type")
-	log.Infof("Header Content-Type: %s", contentType)
-
-	log.Debugf("username is: [%s], password is [%s]", r.Username, r.Password)
-	if r.Username == "" {
-		SendResponse(c, errno.New(errno.ErrUserNotFound, fmt.Errorf("username can not found in db: xx.xx.xx.xx")), nil)
+	// 参数校验
+	// Validate the data.
+	if err := u.Validate(); err != nil {
+		SendResponse(c, errno.ErrValidation, nil)
 		return
 	}
 
-	if r.Password == "" {
-		SendResponse(c, fmt.Errorf("password is empty"), nil)
+	// 进行密码加密
+	// Encrypt the user password.
+	if err := u.Encrypt(); err != nil {
+		SendResponse(c, errno.ErrEncrypt, nil)
+		return
+	}
+	// Insert the user to the database.
+	if err := u.Create(); err != nil {
+		SendResponse(c, errno.ErrDatabase, nil)
+		return
 	}
 
 	rsp := CreateResponse{
